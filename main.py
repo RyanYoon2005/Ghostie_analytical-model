@@ -1,13 +1,22 @@
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 
-# Load FinBERT model on startup
+# Load FinBERT and summarization model
 print("Loading models...")
+sum_tokenizer = AutoTokenizer.from_pretrained("sshleifer/distilbart-cnn-12-6")
+sum_model = AutoModelForSeq2SeqLM.from_pretrained("sshleifer/distilbart-cnn-12-6")
 sentiment_model = pipeline("text-classification", model="ProsusAI/finbert")
 print("Models ready.\n")
 
 
+def summarise(text):
+    """Summarise text using DistilBART."""
+    inputs = sum_tokenizer(text, return_tensors="pt", max_length=512, truncation=True)
+    ids = sum_model.generate(inputs["input_ids"], max_length=80, min_length=20, do_sample=False)
+    return sum_tokenizer.decode(ids[0], skip_special_tokens=True)
+
+
 def get_rating(label, score):
-    """Convert FinBERT sentiment and confidence score to a 1–5 numeric rating."""
+    """Convert FinBERT sentiment and confidence score to a 1-5 numeric rating."""
     if label == "negative":
         return 1 if score >= 0.75 else 2
     if label == "neutral":
@@ -17,12 +26,16 @@ def get_rating(label, score):
 
 
 def analyse(text):
-    """Run FinBERT sentiment analysis and return label, confidence, and rating."""
+    """Summarise the text, run FinBERT, and return results."""
+    word_count = len(text.split())
+    summary = summarise(text) if word_count >= 30 else text
+
     result = sentiment_model(text)[0]
-    label = result["label"]   # "positive", "negative", or "neutral"
+    label = result["label"]
     score = result["score"]
     rating = get_rating(label, score)
-    return label, score, rating
+
+    return summary, label, score, rating
 
 
 def main():
@@ -38,9 +51,10 @@ def main():
             continue
 
         print("\nAnalysing...")
-        label, score, rating = analyse(text)
+        summary, label, score, rating = analyse(text)
 
-        print(f"\n  Sentiment : {label.capitalize()} ({score:.0%} confidence)")
+        print(f"\n  Summary   : {summary}")
+        print(f"  Sentiment : {label.capitalize()} ({score:.0%} confidence)")
         print(f"  Rating    : {rating} / 5")
         print("-" * 50 + "\n")
 
