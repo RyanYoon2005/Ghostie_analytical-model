@@ -1,6 +1,5 @@
 from analyser import analyse, combined_rating, combined_label
 
-
 def _star_to_score(rating) -> float:
     """Convert a 1-5 star rating to a -1 to +1 score."""
     try:
@@ -8,7 +7,6 @@ def _star_to_score(rating) -> float:
         return (r - 3) / 2  # 1→-1.0, 2→-0.5, 3→0.0, 4→+0.5, 5→+1.0
     except (TypeError, ValueError):
         return None
-
 
 def _analyse_item(item: dict) -> float | None:
     """
@@ -44,7 +42,6 @@ def _analyse_item(item: dict) -> float | None:
             return None
         _, _, _, ml_score, _, _ = analyse(text)
         return ml_score
-
 
 def analyse_business(business_name: str, location: str, category: str, data: list) -> dict:
     """
