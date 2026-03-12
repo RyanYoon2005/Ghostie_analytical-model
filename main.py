@@ -1,86 +1,83 @@
-from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
-from custom_analyser import custom_score
+import httpx
+import uvicorn
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import JSONResponse
+from data_processor import analyse_business
 
-# Load models
-print("Loading models...")
-sum_tokenizer = AutoTokenizer.from_pretrained("sshleifer/distilbart-cnn-12-6")
-sum_model = AutoModelForSeq2SeqLM.from_pretrained("sshleifer/distilbart-cnn-12-6")
-sentiment_model = pipeline("text-classification", model="ProsusAI/finbert")
-print("Models ready.\n")
+DATA_RETRIEVAL_URL = "http://localhost:8001"
 
+app = FastAPI(
+    title="Ghostie Analytical Model API",
+    version="1.0.0"
+)
 
-def summarise(text):
-    """Summarise text using DistilBART."""
-    inputs = sum_tokenizer(text, return_tensors="pt", max_length=512, truncation=True)
-    ids = sum_model.generate(inputs["input_ids"], max_length=80, min_length=20, do_sample=False)
-    return sum_tokenizer.decode(ids[0], skip_special_tokens=True)
+@app.get("/")
+def root():
+    return {
+        "service": "Ghostie Analytical Model API",
+        "version": "1.0.0",
+        "status":  "running",
+        "endpoints": {
+            "GET /sentiment": "Fetch & analyse business data from the data retrieval server",
+            "GET /health":    "Health check",
+        }
+    }
 
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
 
-FINBERT_NUMERIC = {"negative": -1.0, "neutral": 0.0, "positive": 1.0}
+@app.get("/sentiment")
+def retrieve(
+    business_name: str = Query(...),
+    location:      str = Query(...),
+    category:      str = Query(...),
+):
+    """
+    Calls the data retrieval server for the latest collected data,
+    then runs sentiment analysis and returns an aggregated result.
+    """
+    # Fetch from data retrieval server
+    try:
+        response = httpx.get(
+            f"{DATA_RETRIEVAL_URL}/retrieve",
+            params={"business_name": business_name, "location": location, "category": category},
+            timeout=30.0,
+        )
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not connect to data retrieval server at {DATA_RETRIEVAL_URL}. Is it running?"
+        )
 
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.json().get("detail", "Data retrieval failed"))
 
-def combined_rating(avg):
-    """Map a -1 to +1 average score to a 1-5 rating."""
-    if avg < -0.5:
-        return 1
-    if avg < -0.15:
-        return 2
-    if avg < 0.15:
-        return 3
-    if avg < 0.5:
-        return 4
-    return 5
+    retrieval = response.json()
 
+    # If nothing changed, no need to re-analyse
+    if retrieval.get("status") == "NO NEW DATA":
+        return JSONResponse(content={
+            "status":        "NO NEW DATA",
+            "hash_key":      retrieval.get("hash_key"),
+            "business_name": business_name,
+            "location":      location,
+            "category":      category,
+            "message":       "Data unchanged since last retrieval. Use cached analytical outputs.",
+        })
 
-def combined_label(avg):
-    """Map a -1 to +1 average score to a sentiment label."""
-    if avg < -0.15:
-        return "negative"
-    if avg > 0.15:
-        return "positive"
-    return "neutral"
+    # Analyse the data array
+    result = analyse_business(
+        business_name=business_name,
+        location=location,
+        category=category,
+        data=retrieval.get("data", []),
+    )
 
+    result["status"]   = "NEW DATA"
+    result["hash_key"] = retrieval.get("hash_key")
 
-def analyse(text):
-    """Summarise text, run FinBERT + custom analyser, return combined results."""
-    word_count = len(text.split())
-    summary = summarise(text) if word_count >= 30 else text
-
-    result = sentiment_model(text)[0]
-    finbert_label = result["label"]
-    finbert_num = FINBERT_NUMERIC[finbert_label]
-
-    lex_score = custom_score(text)
-
-    avg = finbert_num * 0.3 + lex_score * 0.7
-    label = combined_label(avg)
-    rating = combined_rating(avg)
-
-    return summary, finbert_label, lex_score, avg, label, rating
-
-
-def main():
-    print("=== Financial Sentiment Analyser ===")
-    print("Paste a financial news sentence or review, then press Enter.")
-    print("Type 'quit' to exit.\n")
-
-    while True:
-        text = input("Input: ").strip()
-        if text.lower() in ("quit", "exit", "q"):
-            break
-        if not text:
-            continue
-
-        print("\nAnalysing...")
-        summary, finbert_label, lex_score, avg, label, rating = analyse(text)
-
-        print(f"\n  Summary   : {summary}")
-        print(f"  FinBERT   : {finbert_label.capitalize()}")
-        print(f"  Custom    : {lex_score:+.2f}")
-        print(f"  Combined  : {label.capitalize()} (avg {avg:+.2f})")
-        print(f"  Rating    : {rating} / 5")
-        print("-" * 50 + "\n")
-
+    return JSONResponse(content=result)
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=8002)

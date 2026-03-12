@@ -111,7 +111,6 @@ NEGATIVE_PHRASES = [
     ("mass layoffs", 1.1),
 ]
 
-
 def _lexicon_score(text):
     """Financial lexicon + phrase scoring. Returns raw (unnormalised) score."""
     text_lower = text.lower()
@@ -133,7 +132,6 @@ def _lexicon_score(text):
 
     # tanh normalises to (-1, 1)
     return math.tanh(raw / 3.0)
-
 
 def custom_score(text):
     """Combine VADER (general NLP) and financial lexicon scores.
