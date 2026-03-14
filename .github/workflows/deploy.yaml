@@ -31,6 +31,11 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name Ghostie-analytical-model
           fi
 
+      - name: Download NLTK data into package
+        run: |
+          pip install nltk
+          python -m nltk.downloader -d nltk_data stopwords vader_lexicon
+
       - run: sam build
 
       - run: sam deploy --stack-name Ghostie-analytical-model --resolve-s3 --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset

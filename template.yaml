@@ -12,7 +12,7 @@ Resources:
       MemorySize: 512
       Environment:
         Variables:
-          NLTK_DATA: /tmp/nltk_data
+          NLTK_DATA: /var/task/nltk_data
       Events:
         ApiCatchAll:
           Type: Api

@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 .aws-sam/
 learned_lexicon.json
+nltk_data/
