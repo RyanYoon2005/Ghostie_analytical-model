@@ -9,7 +9,8 @@ DATA_RETRIEVAL_URL = os.environ.get("DATA_RETRIEVAL_URL", "http://localhost:8001
 
 app = FastAPI(
     title="Ghostie Analytical Model API",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/Prod",
 )
 
 @app.get("/")
