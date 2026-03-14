@@ -89,3 +89,11 @@ def analyse(text: str, use_ml: bool = True):
     label  = combined_label(score)
     rating = combined_rating(score)
     return text, label, lex_score, score, label, rating
+
+if __name__ == "__main__":
+    import sys
+    text = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else input("Enter text: ")
+    _, label, lex_score, score, _, rating = analyse(text)
+    print(f"Label:  {label}")
+    print(f"Score:  {score:.3f}")
+    print(f"Rating: {rating}/5")
