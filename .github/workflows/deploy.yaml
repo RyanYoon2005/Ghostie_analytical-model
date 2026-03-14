@@ -39,3 +39,16 @@ jobs:
       - run: sam build
 
       - run: sam deploy --stack-name Ghostie-analytical-model --resolve-s3 --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset
+
+      - name: Invoke Lambda and show logs
+        run: |
+          FUNCTION=$(aws cloudformation describe-stack-resource \
+            --stack-name Ghostie-analytical-model \
+            --logical-resource-id MyFastApiFunction \
+            --query 'StackResourceDetail.PhysicalResourceId' --output text)
+          echo "Function: $FUNCTION"
+          aws lambda invoke --function-name "$FUNCTION" \
+            --payload '{"httpMethod":"GET","path":"/health","headers":{},"queryStringParameters":null,"body":null,"isBase64Encoded":false}' \
+            --log-type Tail --query 'LogResult' --output text /tmp/response.json | base64 -d
+          echo "--- Response ---"
+          cat /tmp/response.json
