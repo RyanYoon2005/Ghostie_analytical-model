@@ -1,7 +1,6 @@
-transformers
-torch
-sentencepiece
 nltk
+scikit-learn
+joblib
 fastapi
 uvicorn
 mangum
