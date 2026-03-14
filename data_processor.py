@@ -146,7 +146,9 @@ def _analyse_item(item: dict) -> float | None:
             # Reviews use VADER+lexicon only (financial model trained on news, not reviews)
             _, _, _, ml_score, _, _ = analyse(body, use_ml=False)
             if star_score is not None:
-                return ml_score * 0.6 + star_score * 0.4
+                blend = ml_score * 0.6 + star_score * 0.4
+                tolerance = 0.1 + abs(star_score) * 0.4
+                return max(star_score - tolerance, min(star_score + tolerance, blend))
             return ml_score
         elif star_score is not None:
             # No text — rely purely on star rating
