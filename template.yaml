@@ -8,6 +8,11 @@ Resources:
       CodeUri: .
       Handler: main.handler # Points to the Mangum handler in main.py
       Runtime: python3.12
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          NLTK_DATA: /tmp/nltk_data
       Events:
         ApiCatchAll:
           Type: Api
