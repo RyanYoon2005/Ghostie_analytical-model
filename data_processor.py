@@ -119,6 +119,7 @@ def analyse_business(business_name: str, location: str, category: str, data: lis
             "overall_rating":    3,
             "overall_score":     0.0,
             "items_analysed":    0,
+            "keywords":          extract_keywords(data),
             "breakdown":         [],
         }
 
