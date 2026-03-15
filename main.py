@@ -19,7 +19,6 @@ dynamodb = boto3.resource(
 )
 analytical_results_table = dynamodb.Table("analytical_results")
 
-
 def floats_to_decimals(obj):
     if isinstance(obj, float):
         return Decimal(str(obj))
@@ -29,6 +28,15 @@ def floats_to_decimals(obj):
         return [floats_to_decimals(i) for i in obj]
     return obj
 
+def floats_to_ints_and_floats(obj):
+    """Convert Decimals back to int/float when reading from DynamoDB."""
+    if isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    if isinstance(obj, dict):
+        return {k: floats_to_ints_and_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [floats_to_ints_and_floats(i) for i in obj]
+    return obj
 
 def save_to_dynamodb(business_key: str, result: dict):
     try:
@@ -115,6 +123,29 @@ def retrieve(
     save_to_dynamodb(business_key, result)
 
     return JSONResponse(content=result)
+
+@app.get("/history")
+def history(
+    business_name: str = Query(...),
+    location:      str = Query(...),
+    category:      str = Query(...),
+):
+    """Return all past analysis results for a business, sorted newest first."""
+    from boto3.dynamodb.conditions import Key
+    business_key = f"{business_name.lower().strip()}_{location.lower().strip()}_{category.lower().strip()}"
+    try:
+        response = analytical_results_table.query(
+            KeyConditionExpression=Key("business_key").eq(business_key),
+            ScanIndexForward=False,  # newest first
+        )
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"DynamoDB error: {e.response['Error']['Message']}")
+
+    items = [floats_to_ints_and_floats(item) for item in response.get("Items", [])]
+    if not items:
+        raise HTTPException(status_code=404, detail=f"No history found for '{business_name}' in '{location}'.")
+
+    return {"business_key": business_key, "count": len(items), "results": items}
 
 from mangum import Mangum
 handler = Mangum(app)
