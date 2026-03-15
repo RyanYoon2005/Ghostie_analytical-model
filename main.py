@@ -124,6 +124,54 @@ def retrieve(
 
     return JSONResponse(content=result)
 
+@app.get("/leaderboard")
+def leaderboard():
+    """Return the top 5 businesses by their most recent analytical score."""
+    try:
+        response = analytical_results_table.scan(
+            ProjectionExpression="business_key, date_time, overall_score, overall_sentiment, overall_rating, business_name, #loc, category",
+            ExpressionAttributeNames={"#loc": "location"},
+        )
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"DynamoDB error: {e.response['Error']['Message']}")
+
+    items = response.get("Items", [])
+    while "LastEvaluatedKey" in response:
+        response = analytical_results_table.scan(
+            ProjectionExpression="business_key, date_time, overall_score, overall_sentiment, overall_rating, business_name, #loc, category",
+            ExpressionAttributeNames={"#loc": "location"},
+            ExclusiveStartKey=response["LastEvaluatedKey"],
+        )
+        items.extend(response.get("Items", []))
+
+    # Keep only the latest entry per business_key
+    latest: dict = {}
+    for item in items:
+        item = floats_to_ints_and_floats(item)
+        key = item["business_key"]
+        if key not in latest or item["date_time"] > latest[key]["date_time"]:
+            latest[key] = item
+
+    # Sort by overall_score descending, take top 5
+    top = sorted(latest.values(), key=lambda x: x.get("overall_score", -1), reverse=True)[:5]
+
+    results = []
+    for rank, item in enumerate(top, start=1):
+        score = item.get("overall_score", 0)
+        results.append({
+            "rank":              rank,
+            "business_name":     item.get("business_name"),
+            "location":          item.get("location"),
+            "category":          item.get("category"),
+            "overall_sentiment": item.get("overall_sentiment"),
+            "overall_rating":    item.get("overall_rating"),
+            "overall_score":     round((score + 1) / 2 * 100, 1),
+            "as_of":             item.get("date_time"),
+        })
+
+    return {"leaderboard": results}
+
+
 @app.get("/history")
 def history(
     business_name: str = Query(...),
