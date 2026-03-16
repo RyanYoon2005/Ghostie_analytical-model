@@ -120,6 +120,12 @@ def retrieve(
     )
 
     business_key = f"{business_name.lower().strip()}_{location.lower().strip()}_{category.lower().strip()}"
+
+    # Convert scores to 0-100 before saving and returning
+    result["overall_score"] = round((result["overall_score"] + 1) / 2 * 100, 1)
+    for item in result.get("breakdown", []):
+        item["score"] = round((item["score"] + 1) / 2 * 100, 1)
+
     save_to_dynamodb(business_key, result)
 
     return JSONResponse(content=result)
@@ -153,18 +159,17 @@ def leaderboard():
             latest[key] = item
 
     # Sort by overall_score descending, take top 5
-    top = sorted(latest.values(), key=lambda x: x.get("overall_score", -1), reverse=True)[:5]
+    top = sorted(latest.values(), key=lambda x: x.get("overall_score", 0), reverse=True)[:5]
 
     results = []
-    for rank, item in enumerate(top, start=1):
-        score = item.get("overall_score", 0)
+    for item in top:
         results.append({
             "business_name":     item.get("business_name"),
             "location":          item.get("location"),
             "category":          item.get("category"),
             "overall_sentiment": item.get("overall_sentiment"),
             "overall_rating":    item.get("overall_rating"),
-            "overall_score":     round((score + 1) / 2 * 100, 1),
+            "overall_score":     item.get("overall_score"),
             "as_of":             item.get("date_time"),
         })
 
@@ -193,12 +198,11 @@ def history(
     results = []
     for item in response["Items"]:
         item = floats_to_ints_and_floats(item)
-        score = item.get("overall_score", 0)
         results.append({
             "date_time":         item.get("date_time"),
             "overall_sentiment": item.get("overall_sentiment"),
             "overall_rating":    item.get("overall_rating"),
-            "overall_score":     round((score + 1) / 2 * 100, 1),
+            "overall_score":     item.get("overall_score"),
         })
 
     return {"business_key": business_key, "count": len(results), "results": results}
