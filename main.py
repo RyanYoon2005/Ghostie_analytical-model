@@ -76,11 +76,12 @@ def health():
 def analyse_text(text: str = Query(..., description="Text to analyse")):
     """Analyse a raw piece of text and return its sentiment score."""
     from analyser import analyse
-    _, label, _, score, _, _ = analyse(text)
+    _, label, _, score, _, rating = analyse(text)
     return {
         "text":      text,
         "sentiment": label,
         "score":     round((score + 1) / 2 * 100, 1),
+        "rating":    rating,
     }
 
 @app.get("/sentiment")
