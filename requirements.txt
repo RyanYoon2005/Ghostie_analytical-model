@@ -8,3 +8,5 @@ mangum
 httpx
 pytest
 pytest-html
+pytest-cov
+ruff

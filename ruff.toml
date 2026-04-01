@@ -1,0 +1,8 @@
+[lint]
+# E = pycodestyle errors, F = pyflakes, W = warnings
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line too long — not enforced
+    "F401",  # unused imports — some are used dynamically
+]
+exclude = ["train.py", "tests/"]
