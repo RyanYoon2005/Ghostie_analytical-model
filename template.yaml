@@ -5,9 +5,7 @@ Resources:
   MyFastApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: .
-      Handler: main.handler
-      Runtime: python3.12
+      PackageType: Image
       Timeout: 30
       MemorySize: 512
       Environment:
@@ -36,6 +34,10 @@ Resources:
           Properties:
             Path: /
             Method: ANY
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: .
+      DockerTag: python3.12-v1
 
 Outputs:
   ApiEndpoint:
