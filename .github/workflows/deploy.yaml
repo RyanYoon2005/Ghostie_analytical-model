@@ -105,3 +105,10 @@ jobs:
             --log-type Tail --output text --query 'LogResult' /tmp/response.json | base64 -d
           echo "--- Response ---"
           cat /tmp/response.json
+
+      - name: Get Lambda CloudWatch logs
+        if: always()
+        run: |
+          sleep 5
+          aws logs tail /aws/lambda/Ghostie-analytical-model-MyFastApiFunction-MkYwxhL7eRby \
+            --region ap-southeast-2 --since 5m
