@@ -6,8 +6,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
-      Timeout: 30
-      MemorySize: 512
+      Timeout: 60
+      MemorySize: 1024
       Environment:
         Variables:
           NLTK_DATA: /var/task/nltk_data
