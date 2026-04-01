@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data_processor import _star_to_score, extract_keywords, _analyse_item, analyse_business
 
+pytestmark = pytest.mark.unit
+
 # ── _star_to_score ────────────────────────────────────────────────────────────
 
 class TestStarToScore:

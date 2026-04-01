@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analyser import combined_rating, combined_label, analyse
 
+pytestmark = pytest.mark.unit
+
 # ── combined_rating ──────────────────────────────────────────────────────────
 
 class TestCombinedRating:

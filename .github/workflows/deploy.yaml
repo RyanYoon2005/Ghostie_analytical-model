@@ -35,21 +35,37 @@ jobs:
       - name: Download NLTK data
         run: python -m nltk.downloader stopwords vader_lexicon
 
-      - name: Run tests with coverage
-        run: pytest
+      - name: Run unit tests
+        run: pytest -m unit --html=unit-test-report.html
 
-      - name: Convert test report to PDF
+      - name: Run integration tests
+        run: pytest -m integration --html=integration-test-report.html
+
+      - name: Convert unit test report to PDF
         if: always()
         run: |
-          google-chrome --headless --disable-gpu --print-to-pdf=test-report.pdf \
-            --no-pdf-header-footer file://$(pwd)/test-report.html
+          google-chrome --headless --disable-gpu --print-to-pdf=unit-test-report.pdf \
+            --no-pdf-header-footer file://$(pwd)/unit-test-report.html
 
-      - name: Upload test report
+      - name: Convert integration test report to PDF
+        if: always()
+        run: |
+          google-chrome --headless --disable-gpu --print-to-pdf=integration-test-report.pdf \
+            --no-pdf-header-footer file://$(pwd)/integration-test-report.html
+
+      - name: Upload unit test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-report
-          path: test-report.pdf
+          name: unit-test-report
+          path: unit-test-report.pdf
+
+      - name: Upload integration test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-report
+          path: integration-test-report.pdf
 
       - name: Upload coverage report
         if: always()

@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import main
 from main import app
 
+pytestmark = pytest.mark.integration
+
 client = TestClient(app, raise_server_exceptions=False)
 
 # ── Sample test data ──────────────────────────────────────────────────────────

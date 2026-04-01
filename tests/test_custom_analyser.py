@@ -13,6 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from custom_analyser import _lexicon_score, custom_score
 
+pytestmark = pytest.mark.unit
+
 # ── _lexicon_score ────────────────────────────────────────────────────────────
 
 class TestLexiconScore:
