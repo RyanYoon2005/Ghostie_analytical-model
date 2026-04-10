@@ -8,6 +8,7 @@ import boto3
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -58,6 +59,13 @@ app = FastAPI(
     title="Ghostie Analytical Model API",
     version="1.0.0",
     root_path="/Prod",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/")
