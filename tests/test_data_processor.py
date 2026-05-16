@@ -18,6 +18,7 @@ from data_processor import (
     extract_keyword_split, extractive_summary, _get_category_weights,
 )
 
+
 pytestmark = pytest.mark.unit
 
 # ── _star_to_score ────────────────────────────────────────────────────────────
@@ -212,12 +213,6 @@ class TestAnalyseBusiness:
         assert "explanation" in result
         assert len(result["explanation"]) > 10
 
-    def test_returns_incremental_flag(self):
-        data = [{"source": "google_maps_reviews", "body": "Great!", "rating": 5}]
-        result = analyse_business("TestCafe", "Sydney", "cafe", data)
-        assert "incremental" in result
-        assert result["incremental"] is False
-
 # ── extract_keyword_split ─────────────────────────────────────────────────────
 
 class TestExtractKeywordSplit:
@@ -342,34 +337,3 @@ class TestCategoryWeights:
         # Finance weights news (positive) more → should score higher than restaurant (weights review/negative more)
         assert finance_result["overall_score"] > restaurant_result["overall_score"]
 
-# ── Incremental scoring ───────────────────────────────────────────────────────
-
-class TestIncrementalScoring:
-    def test_incremental_false_without_prev_score(self):
-        data = [{"source": "google_maps_reviews", "body": "Great place!", "rating": 5}]
-        result = analyse_business("TestCafe", "Sydney", "cafe", data)
-        assert result["incremental"] is False
-
-    def test_incremental_true_with_prev_score(self):
-        data = [{"source": "google_maps_reviews", "body": "Great place!", "rating": 5}]
-        result = analyse_business("TestCafe", "Sydney", "cafe", data, prev_score=0.0)
-        assert result["incremental"] is True
-
-    def test_prev_score_pulls_result_toward_it(self):
-        data = [{"source": "google_maps_reviews", "body": "Amazing absolutely perfect wonderful!", "rating": 5}]
-        raw    = analyse_business("TestCafe", "Sydney", "cafe", data)
-        pulled = analyse_business("TestCafe", "Sydney", "cafe", data, prev_score=-1.0)
-        # prev_score=-1.0 (very negative) should pull the score down vs no blending
-        assert pulled["overall_score"] < raw["overall_score"]
-
-    def test_prev_score_is_blended_not_replaced(self):
-        data = [{"source": "google_maps_reviews", "body": "Amazing absolutely perfect wonderful!", "rating": 5}]
-        pulled = analyse_business("TestCafe", "Sydney", "cafe", data, prev_score=-1.0)
-        # Result should NOT be -1.0 (it's blended 70% new)
-        assert pulled["overall_score"] > -0.5
-
-    def test_empty_data_with_prev_score_returns_zero(self):
-        # No items means no score — incremental flag off, prev_score unused
-        result = analyse_business("TestCafe", "Sydney", "cafe", [], prev_score=0.9)
-        assert result["overall_score"] == 0.0
-        assert result["incremental"] is False

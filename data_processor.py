@@ -262,15 +262,8 @@ def _analyse_item(item: dict) -> float | None:
 
 # ── Main aggregation ──────────────────────────────────────────────────────────
 
-def analyse_business(business_name: str, location: str, category: str,
-                     data: list, prev_score: float | None = None) -> dict:
-    """
-    Run sentiment analysis on each item and aggregate into an overall result.
-
-    Args:
-        prev_score: Previous overall_score in -1 to +1 range for incremental
-                    blending. Pass None to compute from scratch.
-    """
+def analyse_business(business_name: str, location: str, category: str, data: list) -> dict:
+    """Run sentiment analysis on each item and aggregate into an overall result."""
     # Score all items once
     scored: list[tuple[dict, float]] = []
     for item in data:
@@ -303,7 +296,6 @@ def analyse_business(business_name: str, location: str, category: str,
             "keyword_split":     {"positive": [], "negative": []},
             "summary":           "",
             "explanation":       "No data available to analyse.",
-            "incremental":       False,
             "breakdown":         [],
         }
 
@@ -322,12 +314,7 @@ def analyse_business(business_name: str, location: str, category: str,
     else:
         raw_score = sum(review_scores) / len(review_scores)
 
-    # Incremental scoring: blend with previous run (EMA, 70% new / 30% historical)
-    incremental = prev_score is not None
-    if incremental:
-        overall_score = 0.7 * raw_score + 0.3 * prev_score
-    else:
-        overall_score = raw_score
+    overall_score = raw_score
 
     keyword_split = extract_keyword_split(
         scored, top_n=5,
@@ -350,10 +337,9 @@ def analyse_business(business_name: str, location: str, category: str,
         "overall_rating":    combined_rating(overall_score),
         "overall_score":     round(overall_score, 3),
         "items_analysed":    len(results),
-        "keywords":          keywords,
-        "keyword_split":     keyword_split,
-        "summary":           summary,
-        "explanation":       explanation,
-        "incremental":       incremental,
-        "breakdown":         results,
+        "keywords":      keywords,
+        "keyword_split": keyword_split,
+        "summary":       summary,
+        "explanation":   explanation,
+        "breakdown":     results,
     }

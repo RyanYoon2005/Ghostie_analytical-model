@@ -142,31 +142,12 @@ def retrieve(
 
     business_key = f"{business_name.lower().strip()}_{location.lower().strip()}_{category.lower().strip()}"
 
-    # Fetch previous score for incremental blending
-    prev_score = None
-    try:
-        from boto3.dynamodb.conditions import Key as DKey
-        prev_resp = analytical_results_table.query(
-            KeyConditionExpression=DKey("business_key").eq(business_key),
-            ScanIndexForward=False,
-            Limit=1,
-        )
-        if prev_resp.get("Items"):
-            prev_item = floats_to_ints_and_floats(prev_resp["Items"][0])
-            prev_score_100 = prev_item.get("overall_score")
-            if prev_score_100 is not None:
-                # Convert 0-100 back to -1 to +1 for blending
-                prev_score = (float(prev_score_100) / 100) * 2 - 1
-    except Exception:
-        pass
-
     from data_processor import analyse_business
     result = analyse_business(
         business_name=business_name,
         location=location,
         category=category,
         data=retrieval.get("data", []),
-        prev_score=prev_score,
     )
 
     # Convert scores to 0-100 before saving and returning
