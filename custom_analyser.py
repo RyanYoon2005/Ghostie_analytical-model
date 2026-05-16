@@ -105,6 +105,26 @@ POSITIVE_PHRASES = [
     ("ahead of analyst", 1.0),
 ]
 
+NEGATION_WORDS = frozenset({
+    "not", "no", "never", "neither", "nor", "without", "hardly", "barely",
+    "seldom", "nobody", "nothing", "nowhere",
+    "doesn't", "don't", "didn't", "isn't", "wasn't", "aren't", "weren't",
+    "won't", "can't", "couldn't", "shouldn't", "wouldn't", "hasn't", "haven't", "hadn't",
+})
+_NEGATION_WINDOW = 5
+
+# Expand contractions before tokenising so "doesn't" → "does not", etc.
+_CONTRACTION_FIXES = [
+    ("won't",    "will not"),
+    ("can't",    "cannot"),
+    ("n't",      " not"),   # covers doesn't, don't, didn't, isn't, wasn't, aren't, weren't, couldn't, shouldn't, wouldn't, hasn't, haven't, hadn't
+]
+
+def _expand_contractions(text: str) -> str:
+    for pattern, replacement in _CONTRACTION_FIXES:
+        text = text.replace(pattern, replacement)
+    return text
+
 NEGATIVE_PHRASES = [
     ("at the price of", 1.0),
     ("came at the price", 1.1),
@@ -134,7 +154,7 @@ NEGATIVE_PHRASES = [
 
 def _lexicon_score(text):
     """Financial lexicon + phrase scoring. Returns raw (unnormalised) score."""
-    text_lower = text.lower()
+    text_lower = _expand_contractions(text.lower())
     words = re.findall(r"\b\w+\b", text_lower)
     raw = 0.0
 
@@ -145,11 +165,18 @@ def _lexicon_score(text):
         if phrase in text_lower:
             raw -= weight
 
+    neg_remaining = 0
     for word in words:
+        if word in NEGATION_WORDS:
+            neg_remaining = _NEGATION_WINDOW
+            continue
+        flip = -1 if neg_remaining > 0 else 1
+        if neg_remaining > 0:
+            neg_remaining -= 1
         if word in POSITIVE_WORDS:
-            raw += POSITIVE_WORDS[word]
+            raw += flip * POSITIVE_WORDS[word]
         elif word in NEGATIVE_WORDS:
-            raw -= NEGATIVE_WORDS[word]
+            raw -= flip * NEGATIVE_WORDS[word]
 
     # tanh normalises to (-1, 1)
     return math.tanh(raw / 3.0)

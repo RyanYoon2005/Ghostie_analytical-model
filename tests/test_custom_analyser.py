@@ -72,3 +72,43 @@ class TestCustomScore:
     def test_empty_text_returns_float(self):
         score = custom_score("")
         assert isinstance(score, float)
+
+# ── Negation handling ─────────────────────────────────────────────────────────
+
+class TestNegationHandling:
+    def test_not_profit_scores_lower_than_profit(self):
+        positive = _lexicon_score("The company reported profit this quarter.")
+        negated  = _lexicon_score("The company did not report profit this quarter.")
+        assert negated < positive
+
+    def test_not_loss_scores_higher_than_loss(self):
+        negative = _lexicon_score("The company reported a loss.")
+        negated  = _lexicon_score("The company did not report a loss.")
+        assert negated > negative
+
+    def test_no_growth_scores_lower_than_growth(self):
+        positive = _lexicon_score("There was strong growth in revenue.")
+        negated  = _lexicon_score("There was no growth in revenue.")
+        assert negated < positive
+
+    def test_never_profit_scores_lower_than_profit(self):
+        positive = _lexicon_score("The company reported profit every quarter.")
+        negated  = _lexicon_score("The company never reported profit.")
+        assert negated < positive
+
+    def test_negation_window_expires_after_5_words(self):
+        # "not" is 6 words before "profit" — window (5) should have expired
+        score = _lexicon_score("The results were not what analysts had previously expected as profit rose.")
+        assert score > 0
+
+    def test_double_negation_restores_positive(self):
+        # "not a loss" — double negative should push score back toward positive
+        double_neg = _lexicon_score("This is not a loss for the company.")
+        raw_neg    = _lexicon_score("This is a loss for the company.")
+        assert double_neg > raw_neg
+
+    def test_contraction_negation_works(self):
+        # "doesn't" should be recognised as a negation word
+        score = _lexicon_score("The company doesn't report losses.")
+        # Negating "losses" (negative) → pushes score positive
+        assert score > 0

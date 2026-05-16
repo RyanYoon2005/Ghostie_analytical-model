@@ -75,8 +75,12 @@ def root():
         "version": "1.0.0",
         "status":  "running",
         "endpoints": {
-            "GET /sentiment": "Fetch & analyse business data from the data retrieval server",
-            "GET /health":    "Health check",
+            "GET /sentiment":       "Fetch & analyse business data with incremental scoring",
+            "GET /analyse":         "Analyse a raw piece of text",
+            "GET /leaderboard":     "Top businesses by sentiment score",
+            "GET /history":         "Historical scores for a business",
+            "GET /competitor-gap":  "Compare a business against category peers",
+            "GET /health":          "Health check",
         }
     }
 
@@ -136,15 +140,34 @@ def retrieve(
         except httpx.ConnectError:
             raise HTTPException(status_code=503, detail="Could not connect to data retrieval server.")
 
+    business_key = f"{business_name.lower().strip()}_{location.lower().strip()}_{category.lower().strip()}"
+
+    # Fetch previous score for incremental blending
+    prev_score = None
+    try:
+        from boto3.dynamodb.conditions import Key as DKey
+        prev_resp = analytical_results_table.query(
+            KeyConditionExpression=DKey("business_key").eq(business_key),
+            ScanIndexForward=False,
+            Limit=1,
+        )
+        if prev_resp.get("Items"):
+            prev_item = floats_to_ints_and_floats(prev_resp["Items"][0])
+            prev_score_100 = prev_item.get("overall_score")
+            if prev_score_100 is not None:
+                # Convert 0-100 back to -1 to +1 for blending
+                prev_score = (float(prev_score_100) / 100) * 2 - 1
+    except Exception:
+        pass
+
     from data_processor import analyse_business
     result = analyse_business(
         business_name=business_name,
         location=location,
         category=category,
         data=retrieval.get("data", []),
+        prev_score=prev_score,
     )
-
-    business_key = f"{business_name.lower().strip()}_{location.lower().strip()}_{category.lower().strip()}"
 
     # Convert scores to 0-100 before saving and returning
     result["overall_score"] = round((result["overall_score"] + 1) / 2 * 100, 1)
@@ -158,6 +181,7 @@ def retrieve(
 
     save_to_dynamodb(business_key, result)
 
+    result["business_key"] = business_key
     return JSONResponse(content=result)
 
 @app.get("/leaderboard")
@@ -194,6 +218,7 @@ def leaderboard():
     results = []
     for item in top:
         results.append({
+            "business_key":      item.get("business_key"),
             "business_name":     item.get("business_name"),
             "location":          item.get("location"),
             "category":          item.get("category"),
@@ -239,6 +264,100 @@ def history(
         })
 
     return {"business_key": business_key, "count": len(results), "results": results}
+
+@app.get("/competitor-gap")
+def competitor_gap(
+    business_name: str = Query(...),
+    location:      str = Query(...),
+    category:      str = Query(...),
+):
+    """Compare a business against all tracked businesses in the same category."""
+    try:
+        response = analytical_results_table.scan(
+            ProjectionExpression="business_key, overall_score, overall_sentiment, business_name, #loc, category, date_time",
+            ExpressionAttributeNames={"#loc": "location"},
+        )
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"DynamoDB error: {e.response['Error']['Message']}")
+
+    items = response.get("Items", [])
+    while "LastEvaluatedKey" in response:
+        response = analytical_results_table.scan(
+            ProjectionExpression="business_key, overall_score, overall_sentiment, business_name, #loc, category, date_time",
+            ExpressionAttributeNames={"#loc": "location"},
+            ExclusiveStartKey=response["LastEvaluatedKey"],
+        )
+        items.extend(response.get("Items", []))
+
+    # Keep latest entry per business
+    latest: dict = {}
+    for item in items:
+        item = floats_to_ints_and_floats(item)
+        key = item["business_key"]
+        if key not in latest or item["date_time"] > latest[key]["date_time"]:
+            latest[key] = item
+
+    business_key = f"{business_name.lower().strip()}_{location.lower().strip()}_{category.lower().strip()}"
+
+    if business_key not in latest:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No data found for '{business_name}'. Run sentiment analysis first.",
+        )
+
+    target = latest[business_key]
+    target_score = float(target["overall_score"])
+
+    # Match peers by category substring (case-insensitive)
+    cat_lower = category.lower()
+    peers = [
+        v for k, v in latest.items()
+        if k != business_key and cat_lower in v.get("category", "").lower()
+    ]
+
+    if not peers:
+        return {
+            "business_name":    business_name,
+            "your_score":       round(target_score, 1),
+            "category":         category,
+            "category_average": round(target_score, 1),
+            "gap_to_leader":    0.0,
+            "leader":           {"business_name": business_name, "score": round(target_score, 1)},
+            "rank":             1,
+            "total_in_category": 1,
+            "competitors":      [],
+        }
+
+    all_in_category = peers + [target]
+    cat_avg = sum(float(c["overall_score"]) for c in all_in_category) / len(all_in_category)
+    sorted_cat = sorted(all_in_category, key=lambda x: float(x["overall_score"]), reverse=True)
+    leader = sorted_cat[0]
+    rank = next(i + 1 for i, x in enumerate(sorted_cat) if x["business_key"] == business_key)
+
+    logger.info("competitor_gap_queried business_key=%s rank=%d total=%d", business_key, rank, len(all_in_category))
+
+    return {
+        "business_name":     business_name,
+        "your_score":        round(target_score, 1),
+        "category":          category,
+        "category_average":  round(cat_avg, 1),
+        "gap_to_leader":     round(float(leader["overall_score"]) - target_score, 1),
+        "leader": {
+            "business_name": leader.get("business_name", ""),
+            "score":         round(float(leader["overall_score"]), 1),
+        },
+        "rank":              rank,
+        "total_in_category": len(all_in_category),
+        "competitors": [
+            {
+                "business_name": c.get("business_name", ""),
+                "location":      c.get("location", ""),
+                "score":         round(float(c["overall_score"]), 1),
+                "sentiment":     c.get("overall_sentiment", ""),
+            }
+            for c in sorted(peers, key=lambda x: float(x["overall_score"]), reverse=True)
+        ],
+    }
 
 handler = Mangum(app)
 
