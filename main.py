@@ -55,67 +55,6 @@ def save_to_dynamodb(business_key: str, result: dict):
 
 DATA_RETRIEVAL_URL = os.environ.get("DATA_RETRIEVAL_URL", "https://8dwmeuc3b1.execute-api.ap-southeast-2.amazonaws.com/Prod")
 
-# ── Category groups for competitor-gap fuzzy matching ─────────────────────────
-_CATEGORY_GROUPS: dict[str, list[str]] = {
-    "food_and_beverage": [
-        "restaurant", "cafe", "coffee", "bakery", "food", "dining", "bistro",
-        "eatery", "bar", "pub", "takeaway", "fast food", "pizza", "sushi",
-        "burger", "barbeque", "bbq", "deli", "catering",
-    ],
-    "financial_services": [
-        "finance", "banking", "bank", "insurance", "investment", "wealth",
-        "superannuation", "mortgage", "loan", "credit", "fintech", "trading",
-        "brokerage", "accounting", "audit",
-    ],
-    "technology": [
-        "technology", "tech", "software", "it ", "information technology",
-        "digital", "saas", "cloud", "app", "startup", "cybersecurity",
-        "data", "ai", "artificial intelligence", "hardware",
-    ],
-    "healthcare": [
-        "healthcare", "health", "medical", "hospital", "clinic", "pharmacy",
-        "dental", "dentist", "doctor", "gp", "specialist", "pathology",
-        "radiology", "aged care", "allied health",
-    ],
-    "retail": [
-        "retail", "shop", "store", "boutique", "fashion", "clothing",
-        "supermarket", "grocery", "ecommerce", "e-commerce", "department",
-        "hardware store", "chemist",
-    ],
-    "hospitality": [
-        "hotel", "motel", "accommodation", "hostel", "resort", "airbnb",
-        "bed and breakfast", "serviced apartment",
-    ],
-    "education": [
-        "education", "school", "university", "college", "training",
-        "tutoring", "academy", "coaching", "childcare", "kindergarten",
-    ],
-    "real_estate": [
-        "real estate", "property", "realty", "agent", "housing",
-        "construction", "developer", "strata",
-    ],
-    "transport": [
-        "transport", "logistics", "shipping", "courier", "freight",
-        "delivery", "airline", "taxi", "ride", "moving", "removalist",
-    ],
-    "entertainment": [
-        "entertainment", "cinema", "movie", "theatre", "gaming", "sport",
-        "fitness", "gym", "recreation", "leisure", "travel", "tourism",
-    ],
-    "professional_services": [
-        "legal", "law", "lawyer", "solicitor", "consulting", "consultant",
-        "marketing", "advertising", "pr ", "public relations", "recruitment",
-        "hr ", "human resources",
-    ],
-}
-
-def _get_category_group(category: str) -> str:
-    """Return the group name for a category, or the lowercased category itself if unmatched."""
-    cat = category.lower()
-    for group, keywords in _CATEGORY_GROUPS.items():
-        if any(kw in cat for kw in keywords):
-            return group
-    return cat
 
 app = FastAPI(
     title="Ghostie Analytical Model API",
@@ -350,25 +289,24 @@ def competitor_gap(
 
     target = latest[business_key]
     target_score = float(target["overall_score"])
-    category_group = _get_category_group(category)
+    cat_lower = category.lower()
 
     peers = [
         v for k, v in latest.items()
-        if k != business_key and _get_category_group(v.get("category", "")) == category_group
+        if k != business_key and v.get("category", "").lower() == cat_lower
     ]
 
     if not peers:
         return {
-            "business_name":    business_name,
-            "your_score":       round(target_score, 1),
-            "category":         category,
-            "category_group":   category_group,
-            "category_average": round(target_score, 1),
-            "gap_to_leader":    0.0,
-            "leader":           {"business_name": business_name, "score": round(target_score, 1)},
-            "rank":             1,
+            "business_name":     business_name,
+            "your_score":        round(target_score, 1),
+            "category":          category,
+            "category_average":  round(target_score, 1),
+            "gap_to_leader":     0.0,
+            "leader":            {"business_name": business_name, "score": round(target_score, 1)},
+            "rank":              1,
             "total_in_category": 1,
-            "competitors":      [],
+            "competitors":       [],
         }
 
     all_in_category = peers + [target]
@@ -377,13 +315,12 @@ def competitor_gap(
     leader = sorted_cat[0]
     rank = next(i + 1 for i, x in enumerate(sorted_cat) if x["business_key"] == business_key)
 
-    logger.info("competitor_gap_queried business_key=%s group=%s rank=%d total=%d", business_key, category_group, rank, len(all_in_category))
+    logger.info("competitor_gap_queried business_key=%s category=%s rank=%d total=%d", business_key, category, rank, len(all_in_category))
 
     return {
-        "business_name":     business_name,
-        "your_score":        round(target_score, 1),
-        "category":          category,
-        "category_group":    category_group,
+        "business_name": business_name,
+        "your_score":    round(target_score, 1),
+        "category":      category,
         "category_average":  round(cat_avg, 1),
         "gap_to_leader":     round(float(leader["overall_score"]) - target_score, 1),
         "leader": {
